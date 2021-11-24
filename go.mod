@@ -2,7 +2,10 @@ module github.com/ktnyt/labcon-ras
 
 go 1.17
 
-require github.com/ktnyt/labcon v0.0.1
+require (
+	github.com/ktnyt/labcon v0.0.2
+	github.com/rs/zerolog v1.26.0
+)
 
 require (
 	github.com/fatih/color v1.13.0 // indirect

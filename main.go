@@ -12,6 +12,8 @@ import (
 
 	"github.com/ktnyt/labcon"
 	"github.com/ktnyt/labcon/driver"
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 )
 
 type Station struct {
@@ -47,6 +49,9 @@ func Convert(dst interface{}, src interface{}) error {
 }
 
 func main() {
+	w := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
+	logger := zlog.Output(w).Level(zerolog.TraceLevel)
+
 	host := os.Getenv("HOST")
 	port := os.Getenv("PORT")
 	if host == "" {
@@ -57,19 +62,35 @@ func main() {
 	}
 	addr := fmt.Sprintf("%s:%s", host, port)
 
+	logger.Info().Msg("Setup Arm Driver")
 	client := labcon.NewClient(addr)
 	arm, err := labcon.NewDriver(client, "arm", false)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	defer func() {
+		logger.Info().Msg("Disconnect Arm")
+		arm.Disconnect()
+	}()
+
+	logger.Info().Msg("Setup Station Drivers")
 	config := []int{2, 1, 1}
 	stations := make([]Station, len(config))
 	for i, n := range config {
 		stations[i] = NewStation(client, i, n)
 	}
 
+	defer func() {
+		for i, station := range stations {
+			logger.Info().Msgf("Disconnect Station %d", i)
+			station.Driver.Disconnect()
+		}
+	}()
+
 	stations[0].Spots[0] = true
+
+	logger.Info().Msg("Listen for dispatch")
 
 	ticker := time.NewTicker(time.Second)
 	done := make(chan error)
@@ -88,6 +109,7 @@ func main() {
 				}
 
 				if op != nil {
+					logger.Info().Str("op", op.Name).Msg("Received Operation")
 
 					switch op.Name {
 					case "take", "put":
@@ -100,7 +122,7 @@ func main() {
 							}
 						}
 
-						log.Printf("%s: station %d, spot %d", op.Name, arg.Station, arg.Spot)
+						logger.Info().Msgf("%s: station %d, spot %d", op.Name, arg.Station, arg.Spot)
 
 						if stations[arg.Station].Spots[arg.Spot] == (op.Name == "take") {
 							status := driver.Status(fmt.Sprintf("no sample to take at station %d, spot %d", arg.Station, arg.Spot))
@@ -129,7 +151,6 @@ func main() {
 						}
 
 					case "reboot":
-						log.Println("reboot")
 						if err := arm.SetStatus(driver.Idle); err != nil {
 							done <- err
 							return
