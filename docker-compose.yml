@@ -15,8 +15,6 @@ services:
       - "REACT_APP_OPERATOR_ADDR=http://localhost:5000"
     ports:
       - 3000:3000
-    volumes:
-      - "./monitor:/app"
     depends_on:
       - operator
   operator:
