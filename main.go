@@ -19,9 +19,9 @@ type Station struct {
 	Spots  []bool
 }
 
-func NewStation(addr string, i, n int) Station {
+func NewStation(client *labcon.Client, i, n int) Station {
 	spots := make([]bool, n)
-	driver, err := labcon.NewDriver(addr, fmt.Sprintf("station%d", i), spots)
+	driver, err := labcon.NewDriver(client, fmt.Sprintf("station%d", i), spots)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -57,7 +57,8 @@ func main() {
 	}
 	addr := fmt.Sprintf("%s:%s", host, port)
 
-	arm, err := labcon.NewDriver(addr, "arm", false)
+	client := labcon.NewClient(addr)
+	arm, err := labcon.NewDriver(client, "arm", false)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -65,7 +66,7 @@ func main() {
 	config := []int{2, 1, 1}
 	stations := make([]Station, len(config))
 	for i, n := range config {
-		stations[i] = NewStation(addr, i, n)
+		stations[i] = NewStation(client, i, n)
 	}
 
 	stations[0].Spots[0] = true
