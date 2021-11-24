@@ -1,4 +1,4 @@
-module github.com/ktnyt/labcon-ras
+module github.com/ktnyt/labcon-ras/simulator
 
 go 1.17
 

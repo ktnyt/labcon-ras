@@ -1,0 +1,12 @@
+{
+  "importOrder": [
+    "^react",
+    "^[A-Za-z]",
+    "^@[^/]",
+    "^@/",
+    "^\\./(.*)",
+    "\\.css$",
+    "^\\.\\./"
+  ],
+  "importOrderSeparation": true
+}

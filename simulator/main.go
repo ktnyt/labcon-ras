@@ -68,6 +68,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	spot := false
 
 	defer func() {
 		logger.Info().Msg("Disconnect Arm")
@@ -89,6 +90,7 @@ func main() {
 	}()
 
 	stations[0].Spots[0] = true
+	stations[0].Driver.SetState(stations[0].Spots)
 
 	logger.Info().Msg("Listen for dispatch")
 
@@ -112,7 +114,15 @@ func main() {
 					logger.Info().Str("op", op.Name).Msg("Received Operation")
 
 					switch op.Name {
-					case "take", "put":
+					case "take":
+						if spot {
+							status := driver.Status("arm already has a sample")
+							if err := arm.SetStatus(status); err != nil {
+								done <- err
+								return
+							}
+						}
+
 						var arg ArmArg
 						if err := Convert(&arg, op.Arg); err != nil {
 							status := driver.Status(fmt.Sprintf("bad argument for operation %q: %v", op.Name, err))
@@ -122,9 +132,11 @@ func main() {
 							}
 						}
 
-						logger.Info().Msgf("%s: station %d, spot %d", op.Name, arg.Station, arg.Spot)
+						logger.Info().Msgf("take: station %d, spot %d", arg.Station, arg.Spot)
 
-						if stations[arg.Station].Spots[arg.Spot] == (op.Name == "take") {
+						time.Sleep(5 * time.Second)
+
+						if !stations[arg.Station].Spots[arg.Spot] {
 							status := driver.Status(fmt.Sprintf("no sample to take at station %d, spot %d", arg.Station, arg.Spot))
 							if err := arm.SetStatus(status); err != nil {
 								done <- err
@@ -132,15 +144,61 @@ func main() {
 							}
 						}
 
-						time.Sleep(2 * time.Second)
-
-						stations[arg.Station].Spots[arg.Spot] = op.Name == "put"
+						stations[arg.Station].Spots[arg.Spot] = false
 						if err := stations[arg.Station].Driver.SetState(stations[arg.Station].Spots); err != nil {
 							done <- err
 							return
 						}
 
-						if err := arm.SetState(op.Name == "take"); err != nil {
+						spot = true
+						if err := arm.SetState(spot); err != nil {
+							done <- err
+							return
+						}
+
+						if err := arm.SetStatus(driver.Idle); err != nil {
+							done <- err
+							return
+						}
+
+					case "put":
+						if !spot {
+							status := driver.Status("arm odes not have a sample")
+							if err := arm.SetStatus(status); err != nil {
+								done <- err
+								return
+							}
+						}
+
+						var arg ArmArg
+						if err := Convert(&arg, op.Arg); err != nil {
+							status := driver.Status(fmt.Sprintf("bad argument for operation %q: %v", op.Name, err))
+							if err := arm.SetStatus(status); err != nil {
+								done <- err
+								return
+							}
+						}
+
+						logger.Info().Msgf("put: station %d, spot %d", arg.Station, arg.Spot)
+
+						time.Sleep(5 * time.Second)
+
+						if !stations[arg.Station].Spots[arg.Spot] {
+							status := driver.Status(fmt.Sprintf("sample is present at station %d, spot %d", arg.Station, arg.Spot))
+							if err := arm.SetStatus(status); err != nil {
+								done <- err
+								return
+							}
+						}
+
+						stations[arg.Station].Spots[arg.Spot] = true
+						if err := stations[arg.Station].Driver.SetState(stations[arg.Station].Spots); err != nil {
+							done <- err
+							return
+						}
+
+						spot = false
+						if err := arm.SetState(spot); err != nil {
 							done <- err
 							return
 						}
